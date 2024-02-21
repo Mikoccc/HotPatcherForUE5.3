@@ -1,5 +1,5 @@
 # HotPatcherForUE5.3
-# 不保证有BUG！不保证有BUG！不保证有BUG！
+# 不保证没有BUG！不保证没有BUG！不保证没有BUG！
 
 只是为了能够在UE5.3使用上，目前已知的BUG HotPatcher的Cook存在问题，建议不要使用（虽然现在真的使用也能跑）。
 
