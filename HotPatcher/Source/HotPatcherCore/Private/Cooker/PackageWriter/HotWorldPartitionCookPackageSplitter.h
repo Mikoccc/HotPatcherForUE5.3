@@ -10,14 +10,15 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackageContext.h"
 
-class FHotWorldPartitionCookPackageSplitter : public FGCObject, public ICookPackageSplitter
+class FWorldPartitionCookPackageSplitter : public FGCObject, public ICookPackageSplitter
 {
 public:
 	//~ Begin of ICookPackageSplitter
 	static bool ShouldSplit(UObject* SplitData);
+	static FString GetSplitterDebugName() { return TEXT("FWorldPartitionCookPackageSplitter"); }
 
-	FHotWorldPartitionCookPackageSplitter();
-	virtual ~FHotWorldPartitionCookPackageSplitter();
+	FWorldPartitionCookPackageSplitter();
+	virtual ~FWorldPartitionCookPackageSplitter();
 
 	virtual void Teardown(ETeardown Status) override;
 	virtual bool UseInternalReferenceToAvoidGarbageCollect() override { return true; }

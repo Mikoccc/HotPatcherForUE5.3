@@ -4,6 +4,7 @@
 #if WITH_EDITOR && !UE_VERSION_OLDER_THAN(5,1,0)
 
 #include "WorldPartition/WorldPartitionLog.h"
+#include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackageGenerator.h"
 
 DEFINE_LOG_CATEGORY(LogHotWorldPartition)
@@ -63,22 +64,50 @@ const FWorldPartitionCookPackage* FWorldPartitionCookPackageContext::AddPackageT
 			TArray<FWorldPartitionCookPackage*>& PackagesToCookForHandler = PackagesToCookByGenerator.FindOrAdd(CookPackageGenerator);
 			PackagesToCookForHandler.Add(CookPackage.Get());
 
-			UE_LOG(LogHotWorldPartition, Verbose, TEXT("[Cook] Added Package %s with ID %llu in context"), *CookPackage->GetFullGeneratedPath(), PackageId);
+			UE_LOG(LogWorldPartition, Verbose, TEXT("[Cook] Added Package %s with ID %llu in context"), *CookPackage->GetFullGeneratedPath(), PackageId);
 
 			return CookPackage.Get();
 		}
 		else
 		{
-			UE_LOG(LogHotWorldPartition, Error, TEXT("[Cook] Trying to add package %s in context but there is already a package to generate with the same ID (%llu). Other package: %s Id %llu"),
+			UE_LOG(LogWorldPartition, Error, TEXT("[Cook] Trying to add package %s in context but there is already a package to generate with the same ID (%llu). Other package: %s Id %llu"),
 				*FWorldPartitionCookPackage::MakeGeneratedFullPath(Root, RelativePath), PackageId, *(*ExistingPackage)->GetFullGeneratedPath(), (*ExistingPackage)->PackageId);
 		}
 	}
 	else
 	{
-		UE_LOG(LogHotWorldPartition, Error, TEXT("[Cook] Trying to add package %s in context, but its generator is not registered."), *FWorldPartitionCookPackage::MakeGeneratedFullPath(Root, RelativePath));
+		UE_LOG(LogWorldPartition, Error, TEXT("[Cook] Trying to add package %s in context, but its generator is not registered."), *FWorldPartitionCookPackage::MakeGeneratedFullPath(Root, RelativePath));
 	}
 
 	return nullptr;
+}
+
+bool FWorldPartitionCookPackageContext::GatherPackagesToCook()
+{
+	bool bIsSuccess = true;
+
+	for (IWorldPartitionCookPackageGenerator* CookPackageGenerator : CookPackageGenerators)
+	{
+		if (CookPackageGenerator->GatherPackagesToCook(*this))
+		{
+			if (const TArray<FWorldPartitionCookPackage*>* CookPackages = GetCookPackages(CookPackageGenerator))
+			{
+				for (FWorldPartitionCookPackage* CookPackage : *CookPackages)
+				{
+					if (UWorldPartitionRuntimeCell* Cell = CookPackage ? CookPackageGenerator->GetCellForPackage(*CookPackage) : nullptr)
+					{
+						Cell->SetLevelPackageName(*CookPackage->GetFullGeneratedPath());
+					}
+				}
+			}
+		}
+		else
+		{
+			bIsSuccess = false;
+		}
+	}
+
+	return bIsSuccess;
 }
 
 #endif

@@ -11,7 +11,7 @@
 #include "Engine/EngineTypes.h"
 #include "Dom/JsonValue.h"
 #include "Templates/SharedPointer.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
 #include "Kismet/BlueprintFunctionLibrary.h"

@@ -6,15 +6,15 @@
 #include "AssetManager/FAssetDependenciesDetail.h"
 #include "AssetManager/FFileArrayDirectoryVisitor.hpp"
 
-#include "AssetRegistryModule.h"
-#include "ARFilter.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/ARFilter.h"
 #include "Kismet/KismetStringLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Json.h"
 #include "Templates/SharedPointer.h"
 #include "Interfaces/IPluginManager.h"
 #include "Engine/AssetManager.h"
-#include "AssetData.h"
+#include "AssetRegistry/AssetData.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Resources/Version.h"
 #include "HotPatcherLog.h"
@@ -214,7 +214,7 @@ bool UFlibAssetManageHelper::GetAssetReferenceByLongPackageName(const FString& L
 			{
 				TArray<FAssetIdentifier> CurrentTypeReferenceNames;
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				AssetRegistryModule.Get().GetReferencers(AssetId, CurrentTypeReferenceNames, AssetDepType);
+				AssetRegistryModule.Get().GetReferencers(AssetId, CurrentTypeReferenceNames, static_cast<UE::AssetRegistry::EDependencyCategory>((uint8)AssetDepType));
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				for (const auto& Name : CurrentTypeReferenceNames)
 				{
@@ -1274,7 +1274,7 @@ TSharedPtr<FStreamableHandle> UFlibAssetManageHelper::LoadObjectAsync(FSoftObjec
 
 void UFlibAssetManageHelper::LoadPackageAsync(FSoftObjectPath ObjectPath,TFunction<void(FSoftObjectPath,bool)> Callback,uint32 Priority)
 {
-	::LoadPackageAsync(ObjectPath.GetLongPackageName(), nullptr,nullptr,FLoadPackageAsyncDelegate::CreateLambda([=](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
+	::LoadPackageAsync(ObjectPath.GetLongPackageName(),FLoadPackageAsyncDelegate::CreateLambda([=](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 	{
 		if(Callback && Result == EAsyncLoadingResult::Succeeded)
 		{

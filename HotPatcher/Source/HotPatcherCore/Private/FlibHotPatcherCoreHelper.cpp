@@ -36,6 +36,7 @@
 #include "Misc/EngineVersionComparison.h"
 #include "Misc/CoreMisc.h"
 #include "DerivedDataCacheInterface.h"
+#include "UObject/ArchiveCookContext.h"
 
 DEFINE_LOG_CATEGORY(LogHotPatcherCoreHelper);
 
@@ -645,14 +646,37 @@ bool UFlibHotPatcherCoreHelper::CookPackage(
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			GIsCookerLoadingPackage = true;
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			FSavePackageResultStruct Result = GEditor->Save(	Package, nullptr, CookedFlags, *CookedSavePath, 
-	                                                GError, nullptr, false, false, SaveFlags, Platform.Value, 
-	                                                FDateTime::MinValue(), false, /*DiffMap*/ nullptr
-	#if WITH_PACKAGE_CONTEXT
-	                                                ,CurrentPlatformPackageContext
-	#endif
-	                                                );
+
+			TOptional<FArchiveCookData> CookData;
+			FArchiveCookContext CookContext(Package, FArchiveCookContext::ECookType::ECookTypeUnknown, FArchiveCookContext::ECookingDLC::ECookingDLCUnknown);
+			if (Platform.Value != nullptr)
+			{
+				CookData.Emplace(*Platform.Value, CookContext);
+			}
+			
+			FSavePackageArgs Args;
+			Args.ArchiveCookData = CookData.GetPtrOrNull();
+			Args.Error = GError;
+			Args.bForceByteSwapping = false;
+			Args.bWarnOfLongFilename = false;
+			Args.SaveFlags = SaveFlags;
+			Args.FinalTimeStamp = FDateTime::MinValue();
+			Args.bSlowTask = false;
+#if WITH_PACKAGE_CONTEXT
+			Args.SavePackageContext = CurrentPlatformPackageContext;
+#endif
+			FSavePackageResultStruct Result = GEditor->Save(Package, nullptr, *CookedSavePath, 
+													Args);
 			GIsCookerLoadingPackage = false;
+			
+	// 		FSavePackageResultStruct Result = GEditor->Save(	Package, nullptr, *CookedSavePath, 
+	//                                                 GError, nullptr, false, false, SaveFlags, Platform.Value, 
+	//                                                 FDateTime::MinValue(), false, /*DiffMap*/ nullptr
+	// #if WITH_PACKAGE_CONTEXT
+	//                                                 ,CurrentPlatformPackageContext
+	// #endif
+	//                                                 );
+	// 		GIsCookerLoadingPackage = false;
 			
 			bSuccessed = Result == ESavePackageResult::Success;
 
@@ -1959,7 +1983,7 @@ bool UFlibHotPatcherCoreHelper::IsCanCookPackage(const FString& LongPackageName)
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!LongPackageName.IsEmpty() && !FPackageName::IsScriptPackage(LongPackageName) && !FPackageName::IsMemoryPackage(LongPackageName))
 	{
-		bResult = UAssetManager::Get().VerifyCanCookPackage(FName(*LongPackageName),false);
+		bResult = UAssetManager::Get().VerifyCanCookPackage(nullptr, FName(*LongPackageName),false);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return bResult;
@@ -2161,7 +2185,10 @@ void UFlibHotPatcherCoreHelper::CacheForCookedPlatformData(
     	
     				GIsCookerLoadingPackage = true;
     				{
-    					GEditor->OnPreSaveWorld(SaveFlags, World);
+    					FObjectSaveContextData Data(Package, nullptr, nullptr, SaveFlags);
+    					FObjectPreSaveContext Context(Data);
+    					
+    					GEditor->OnPreSaveWorld(World, Context);
     				}
     				{
     					bool bCleanupIsRequired = World->PreSaveRoot(TEXT(""));

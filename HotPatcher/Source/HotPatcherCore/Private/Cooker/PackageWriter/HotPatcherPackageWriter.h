@@ -4,11 +4,14 @@
 
 #if WITH_PACKAGE_CONTEXT && ENGINE_MAJOR_VERSION > 4
 #include "Serialization/PackageWriter.h"
+#include "AssetRegistry/AssetRegistryState.h"
+
 #include "PackageWriterToSharedBuffer.h"
 
 class FHotPatcherPackageWriter:public TPackageWriterToSharedBuffer<ICookedPackageWriter>
 {
 public:
+	
 	virtual FCookCapabilities GetCookCapabilities() const override
 	{
 		FCookCapabilities Result;
@@ -17,11 +20,15 @@ public:
 	}
 
 	virtual void BeginPackage(const FBeginPackageInfo& Info) override;
-	virtual void AddToExportsSize(int64& ExportsSize) override;
+	virtual int64 GetExportsFooterSize() override;
+	
+	//virtual void AddToExportsSize(int64& ExportsSize) override;
 	virtual FDateTime GetPreviousCookTime() const override;
 	virtual void Initialize(const FCookInfo& Info) override;
-	virtual void BeginCook() override;
-	virtual void EndCook() override;
+	virtual void BeginCook(const FCookInfo& Info) override;
+	virtual void EndCook(const FCookInfo& Info) override;
+	virtual TFuture<FCbObject> WriteMPCookMessageForPackage(FName PackageName) override;
+	virtual bool TryReadMPCookMessageForPackage(FName PackageName, FCbObjectView Message) override;
 	// virtual void Flush() override;
 	virtual TUniquePtr<FAssetRegistryState> LoadPreviousAssetRegistry()override;
 	
@@ -30,8 +37,9 @@ public:
 	virtual void RemoveCookedPackages() override;
 	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) override;
 	virtual bool GetPreviousCookedBytes(const FPackageInfo& Info, FPreviousCookedBytesData& OutData) override;
-	virtual void CompleteExportsArchiveForDiff(const FPackageInfo& Info, FLargeMemoryWriter& ExportsArchive) override;
-
+	virtual void CompleteExportsArchiveForDiff(FPackageInfo& Info, FLargeMemoryWriter& ExportsArchive) override;
+	virtual EPackageWriterResult BeginCacheForCookedPlatformData(FBeginCacheForCookedPlatformDataInfo& Info) override;
+	
 	virtual void CommitPackageInternal(FPackageRecord&& Record,const IPackageWriter::FCommitPackageInfo& Info)override;
 
 	virtual FPackageWriterRecords::FPackage* ConstructRecord() override;
@@ -83,6 +91,7 @@ private:
 	void CollectForSaveLinkerAdditionalDataRecords(FRecord& Record, FCommitContext& Context);
 	void CollectForSaveAdditionalFileRecords(FRecord& Record, FCommitContext& Context);
 	void CollectForSaveExportsFooter(FRecord& Record, FCommitContext& Context);
+	void CollectForSaveExportsPackageTrailer(FRecord& Record, FCommitContext& Context);
 	void CollectForSaveExportsBuffers(FRecord& Record, FCommitContext& Context);
 
 	TMap<FName, TRefCountPtr<FPackageHashes>>& GetPackageHashes() override

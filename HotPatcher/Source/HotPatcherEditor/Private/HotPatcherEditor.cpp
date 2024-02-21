@@ -357,7 +357,7 @@ void FHotPatcherEditorModule::MakeCookAndPakActionsSubMenu(UToolMenu* Menu)
 		FToolMenuEntry& PlatformEntry = Section.AddSubMenu(FName(*PlatformName),
 			FText::Format(LOCTEXT("Platform", "{0}"), UKismetTextLibrary::Conv_StringToText(THotPatcherTemplateHelper::GetEnumNameByValue(Platform))),
 			FText(),
-			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder){
+			FNewMenuDelegate::CreateLambda([=, this](FMenuBuilder& SubMenuBuilder){
 				SubMenuBuilder.AddMenuEntry(
 					LOCTEXT("AnalysisDependencies", "AnalysisDependencies"), FText(),
 					FSlateIcon(*StyleSetName,TEXT("WorldBrowser.LevelsMenuBrush")),

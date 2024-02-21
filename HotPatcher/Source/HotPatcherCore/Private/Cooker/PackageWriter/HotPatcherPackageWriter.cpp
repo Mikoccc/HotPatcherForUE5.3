@@ -5,23 +5,45 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/Async.h"
 #include "Serialization/LargeMemoryWriter.h"
+
 #include "UObject/SavePackage.h"
 
 void FHotPatcherPackageWriter::Initialize(const FCookInfo& Info){}
 
-void FHotPatcherPackageWriter::AddToExportsSize(int64& ExportsSize)
-{
-	TPackageWriterToSharedBuffer<ICookedPackageWriter>::AddToExportsSize(ExportsSize);
-}
+// void FHotPatcherPackageWriter::AddToExportsSize(int64& ExportsSize)
+// {
+// 	TPackageWriterToSharedBuffer<ICookedPackageWriter>::AddToExportsSize(ExportsSize);
+// }
 
 void FHotPatcherPackageWriter::BeginPackage(const FBeginPackageInfo& Info)
 {
 	TPackageWriterToSharedBuffer<ICookedPackageWriter>::BeginPackage(Info);
 }
 
-void FHotPatcherPackageWriter::BeginCook(){}
+int64 FHotPatcherPackageWriter::GetExportsFooterSize()
+{
+	return sizeof(uint32);
+}
 
-void FHotPatcherPackageWriter::EndCook(){}
+void FHotPatcherPackageWriter::BeginCook(const FCookInfo& Info)
+{
+	
+}
+
+void FHotPatcherPackageWriter::EndCook(const FCookInfo& Info)
+{
+	
+}
+
+TFuture<FCbObject> FHotPatcherPackageWriter::WriteMPCookMessageForPackage(FName PackageName)
+{
+	return TFuture<FCbObject>();
+}
+
+bool FHotPatcherPackageWriter::TryReadMPCookMessageForPackage(FName PackageName, FCbObjectView Message)
+{
+	return false;
+}
 
 // void FHotPatcherPackageWriter::Flush()
 // {
@@ -56,11 +78,52 @@ bool FHotPatcherPackageWriter::GetPreviousCookedBytes(const FPackageInfo& Info, 
 	return ICookedPackageWriter::GetPreviousCookedBytes(Info, OutData);
 }
 
-void FHotPatcherPackageWriter::CompleteExportsArchiveForDiff(const FPackageInfo& Info,
-	FLargeMemoryWriter& ExportsArchive)
+PRAGMA_DISABLE_OPTIMIZATION
+
+void FHotPatcherPackageWriter::CompleteExportsArchiveForDiff(FPackageInfo& Info, FLargeMemoryWriter& ExportsArchive)
 {
-	ICookedPackageWriter::CompleteExportsArchiveForDiff(Info, ExportsArchive);
+	FPackageWriterRecords::FPackage& BaseRecord = Records.FindRecordChecked(Info.PackageName);
+	FRecord& Record = static_cast<FRecord&>(BaseRecord);
+	Record.bCompletedExportsArchiveForDiff = true;
+
+	// Add on all the attachments which are usually added on during Commit. The order must match AsyncSave.
+	for (FBulkDataRecord& BulkRecord : Record.BulkDatas)
+	{
+		if (BulkRecord.Info.BulkDataType == FBulkDataInfo::AppendToExports && BulkRecord.Info.MultiOutputIndex == Info.MultiOutputIndex)
+		{
+			ExportsArchive.Serialize(const_cast<void*>(BulkRecord.Buffer.GetData()),
+				BulkRecord.Buffer.GetSize());
+		}
+	}
+	for (FLinkerAdditionalDataRecord& AdditionalRecord : Record.LinkerAdditionalDatas)
+	{
+		if (AdditionalRecord.Info.MultiOutputIndex == Info.MultiOutputIndex)
+		{
+			ExportsArchive.Serialize(const_cast<void*>(AdditionalRecord.Buffer.GetData()),
+				AdditionalRecord.Buffer.GetSize());
+		}
+	}
+
+	uint32 FooterData = PACKAGE_FILE_TAG;
+	ExportsArchive << FooterData;
+
+	for (FPackageTrailerRecord& PackageTrailer : Record.PackageTrailers)
+	{
+		if (PackageTrailer.Info.MultiOutputIndex == Info.MultiOutputIndex)
+		{
+			ExportsArchive.Serialize(const_cast<void*>(PackageTrailer.Buffer.GetData()),
+				PackageTrailer.Buffer.GetSize());
+		}
+	}
 }
+
+EPackageWriterResult FHotPatcherPackageWriter::BeginCacheForCookedPlatformData(
+	FBeginCacheForCookedPlatformDataInfo& Info)
+{
+	return EPackageWriterResult::Success;
+}
+
+PRAGMA_ENABLE_OPTIMIZATION
 
 void FHotPatcherPackageWriter::CollectForSavePackageData(FRecord& Record, FCommitContext& Context)
 {
@@ -137,6 +200,22 @@ void FHotPatcherPackageWriter::CollectForSaveExportsFooter(FRecord& Record, FCom
 		Context.ExportsBuffers[Package.Info.MultiOutputIndex].Add(FExportBuffer{ Buffer, TArray<FFileRegion>() });
 	}
 }
+
+void FHotPatcherPackageWriter::CollectForSaveExportsPackageTrailer(FRecord& Record, FCommitContext& Context)
+{
+	if (Record.bCompletedExportsArchiveForDiff)
+	{
+		// Already Added in CompleteExportsArchiveForDiff
+		return;
+	}
+
+	for (FPackageTrailerRecord& PackageTrailer : Record.PackageTrailers)
+	{
+		Context.ExportsBuffers[PackageTrailer.Info.MultiOutputIndex].Add(
+			FExportBuffer{ PackageTrailer.Buffer, TArray<FFileRegion>() });
+	}
+}
+
 void FHotPatcherPackageWriter::CollectForSaveExportsBuffers(FRecord& Record, FCommitContext& Context)
 {
 	check(Context.ExportsBuffers.Num() == Record.Packages.Num());
@@ -191,6 +270,7 @@ void FHotPatcherPackageWriter::CollectForSaveExportsBuffers(FRecord& Record, FCo
 		}
 	}
 }
+PRAGMA_DISABLE_OPTIMIZATION
 
 
 TFuture<FMD5Hash> FHotPatcherPackageWriter::AsyncSave(FRecord& Record, const FCommitPackageInfo& Info)
@@ -205,11 +285,12 @@ TFuture<FMD5Hash> FHotPatcherPackageWriter::AsyncSave(FRecord& Record, const FCo
 	CollectForSaveLinkerAdditionalDataRecords(Record, Context);
 	CollectForSaveAdditionalFileRecords(Record, Context);
 	CollectForSaveExportsFooter(Record, Context);
+	CollectForSaveExportsPackageTrailer(Record, Context);
 	CollectForSaveExportsBuffers(Record, Context);
 
 	return AsyncSaveOutputFiles(Record, Context);
 }
-
+PRAGMA_ENABLE_OPTIMIZATION
 TFuture<FMD5Hash> FHotPatcherPackageWriter::AsyncSaveOutputFiles(FRecord& Record, FCommitContext& Context)
 {
 	if (!EnumHasAnyFlags(Context.Info.WriteOptions, EWriteOptions::Write | EWriteOptions::ComputeHash))
@@ -251,14 +332,9 @@ void FHotPatcherPackageWriter::CommitPackageInternal(FPackageRecord&& Record,
 	}
 }
 
-/** Version of the superclass's per-package record that includes our class-specific data. */
-struct FHotRecord : public FPackageWriterRecords::FPackage
-{
-};
-
 FPackageWriterRecords::FPackage* FHotPatcherPackageWriter::ConstructRecord()
 {
-	return new FHotRecord();
+	return new FRecord();
 }
 
 static void WriteToFile(const FString& Filename, const FCompositeBuffer& Buffer)

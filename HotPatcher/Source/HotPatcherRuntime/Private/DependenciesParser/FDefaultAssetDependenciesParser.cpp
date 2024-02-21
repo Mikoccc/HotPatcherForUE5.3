@@ -230,7 +230,7 @@ TSet<FName> FAssetDependenciesParser::GatherAssetDependicesInfoRecursively(
 	{
 		SCOPED_NAMED_EVENT_TEXT("GetDependencies",FColor::Red);
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		bGetDependenciesSuccess = InAssetRegistryModule.Get().GetDependencies(InLongPackageName, CurrentAssetDependencies, TotalType);
+		bGetDependenciesSuccess = InAssetRegistryModule.Get().GetDependencies(InLongPackageName, CurrentAssetDependencies, static_cast<UE::AssetRegistry::EDependencyCategory>((uint8)TotalType));
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		for(const auto& SkipForDependencies:ParserSkipAssetByDependencies(CurrentAssetData,CurrentAssetDependencies))

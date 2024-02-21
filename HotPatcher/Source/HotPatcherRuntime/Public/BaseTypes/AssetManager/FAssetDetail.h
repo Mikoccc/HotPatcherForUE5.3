@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AssetData.h"
+#include "AssetRegistry/AssetData.h"
 // #include "FlibAssetManageHelper.h"
 #include "UObject/NameTypes.h"
 #include "CoreMinimal.h"

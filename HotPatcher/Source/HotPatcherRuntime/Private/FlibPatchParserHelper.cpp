@@ -20,7 +20,7 @@
 #include "HAL/FileManager.h"
 #include "Engine/EngineTypes.h"
 #include "JsonObjectConverter.h"
-#include "AssetRegistryState.h"
+#include "AssetRegistry/AssetRegistryState.h"
 #include "FPackageTracker.h"
 #include "HotPatcherRuntime.h"
 #include "Async/ParallelFor.h"

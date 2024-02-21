@@ -24,7 +24,7 @@
 #include "JsonObjectConverter.h"
 #include "Misc/CommandLine.h"
 #include "FPlatformExternAssets.h"
-#include "AssetRegistryState.h"
+#include "AssetRegistry/AssetRegistryState.h"
 #include "Containers/UnrealString.h"
 #include "CreatePatch/FExportPatchSettings.h"
 #include "Templates/SharedPointer.h"

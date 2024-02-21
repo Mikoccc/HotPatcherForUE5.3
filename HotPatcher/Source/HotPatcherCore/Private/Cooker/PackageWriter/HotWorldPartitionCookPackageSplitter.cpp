@@ -4,35 +4,32 @@
 
 #if WITH_EDITOR && ENGINE_MAJOR_VERSION > 4
 
-#include "Misc/ConfigCacheIni.h"
-#include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
-#include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
-#include "WorldPartition/WorldPartitionRuntimeCell.h"
-#include "WorldPartition/WorldPartitionRuntimeHash.h"
-#include "WorldPartition/WorldPartitionSubsystem.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#include "Engine/Level.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
+#include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "Editor.h"
 
 // Register FHotWorldPartitionCookPackageSplitter for UWorld class
-// REGISTER_COOKPACKAGE_SPLITTER(FHotWorldPartitionCookPackageSplitter, UWorld);
+//REGISTER_COOKPACKAGE_SPLITTER(FHotWorldPartitionCookPackageSplitter, UWorld);
 
-bool FHotWorldPartitionCookPackageSplitter::ShouldSplit(UObject* SplitData)
+bool FWorldPartitionCookPackageSplitter::ShouldSplit(UObject* SplitData)
 {
 	UWorld* World = Cast<UWorld>(SplitData);
 	return World && World->IsPartitionedWorld();
 }
 
-FHotWorldPartitionCookPackageSplitter::FHotWorldPartitionCookPackageSplitter()
+FWorldPartitionCookPackageSplitter::FWorldPartitionCookPackageSplitter()
 {
 }
 
-FHotWorldPartitionCookPackageSplitter::~FHotWorldPartitionCookPackageSplitter()
+FWorldPartitionCookPackageSplitter::~FWorldPartitionCookPackageSplitter()
 {
 	check(!ReferencedWorld);
 }
 
-void FHotWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
+void FWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 {
  	if (bInitializedWorldPartition)
 	{
@@ -57,17 +54,17 @@ void FHotWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 	ReferencedWorld = nullptr;
 }
 
-void FHotWorldPartitionCookPackageSplitter::AddReferencedObjects(FReferenceCollector& Collector)
+void FWorldPartitionCookPackageSplitter::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(ReferencedWorld);
 }
 
-FString FHotWorldPartitionCookPackageSplitter::GetReferencerName() const
+FString FWorldPartitionCookPackageSplitter::GetReferencerName() const
 {
-	return TEXT("FHotWorldPartitionCookPackageSplitter");
+	return TEXT("FWorldPartitionCookPackageSplitter");
 }
 
-UWorld* FHotWorldPartitionCookPackageSplitter::ValidateDataObject(UObject* SplitData)
+UWorld* FWorldPartitionCookPackageSplitter::ValidateDataObject(UObject* SplitData)
 {
 	UWorld* PartitionedWorld = CastChecked<UWorld>(SplitData);
 	check(PartitionedWorld);
@@ -76,12 +73,12 @@ UWorld* FHotWorldPartitionCookPackageSplitter::ValidateDataObject(UObject* Split
 	return PartitionedWorld;
 }
 
-const UWorld* FHotWorldPartitionCookPackageSplitter::ValidateDataObject(const UObject* SplitData)
+const UWorld* FWorldPartitionCookPackageSplitter::ValidateDataObject(const UObject* SplitData)
 {
 	return ValidateDataObject(const_cast<UObject*>(SplitData));
 }
 
-TArray<ICookPackageSplitter::FGeneratedPackage> FHotWorldPartitionCookPackageSplitter::GetGenerateList(const UPackage* OwnerPackage, const UObject* OwnerObject)
+TArray<ICookPackageSplitter::FGeneratedPackage> FWorldPartitionCookPackageSplitter::GetGenerateList(const UPackage* OwnerPackage, const UObject* OwnerObject)
 {
 	// TODO: Make WorldPartition functions const so we can honor the constness of the OwnerObject in this API function
 	const UWorld* ConstPartitionedWorld = ValidateDataObject(OwnerObject);
@@ -104,27 +101,24 @@ TArray<ICookPackageSplitter::FGeneratedPackage> FHotWorldPartitionCookPackageSpl
 
 	WorldPartition->BeginCook(CookContext);
 
-	bool bIsSuccess = true;
-	for (IWorldPartitionCookPackageGenerator* CookPackageGenerator : CookContext.GetCookPackageGenerators())
-	{
-		bIsSuccess &= CookPackageGenerator->GatherPackagesToCook(CookContext);
-	}
+	bool bIsSuccess = CookContext.GatherPackagesToCook();
+	UE_CLOG(!bIsSuccess, LogWorldPartition, Warning, TEXT("[Cook] Errors while gathering packages to took from generators for owner object %s."), *GetFullNameSafe(OwnerObject));
 
-	UE_LOG(LogHotWorldPartition, Log, TEXT("[Cook] Gathered %u packages to generate from %u Generators."), CookContext.NumPackageToGenerate(), CookContext.NumGenerators());
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Gathered %u packages to generate from %u Generators."), CookContext.NumPackageToGenerate(), CookContext.NumGenerators());
 
 	TArray<ICookPackageSplitter::FGeneratedPackage> PackagesToGenerate;
 	BuildPackagesToGenerateList(PackagesToGenerate);
 
-	UE_LOG(LogHotWorldPartition, Log, TEXT("[Cook] Sending %u packages to be generated."), PackagesToGenerate.Num());
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook] Sending %u packages to be generated."), PackagesToGenerate.Num());
 
 	return PackagesToGenerate;
 }
 
-bool FHotWorldPartitionCookPackageSplitter::PopulateGeneratedPackage(UPackage* OwnerPackage, UObject* OwnerObject,
+bool FWorldPartitionCookPackageSplitter::PopulateGeneratedPackage(UPackage* OwnerPackage, UObject* OwnerObject,
 	const FGeneratedPackageForPopulate& GeneratedPackage, TArray<UObject*>& OutObjectsToMove,
 	TArray<UPackage*>& OutModifiedPackages)
 {
-	UE_LOG(LogHotWorldPartition, Verbose, TEXT("[Cook][PopulateGeneratedPackage] Processing %s"), *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
+	UE_LOG(LogWorldPartition, Verbose, TEXT("[Cook][PopulateGeneratedPackage] Processing %s"), *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
 
 	bool bIsSuccess = true;
 
@@ -137,26 +131,26 @@ bool FHotWorldPartitionCookPackageSplitter::PopulateGeneratedPackage(UPackage* O
 	}
 	else
 	{
-		UE_LOG(LogHotWorldPartition, Error, TEXT("[Cook][PopulateGeneratedPackage] Could not find WorldPartitionCookPackage for %s"), *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
+		UE_LOG(LogWorldPartition, Error, TEXT("[Cook][PopulateGeneratedPackage] Could not find WorldPartitionCookPackage for %s"), *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
 		bIsSuccess = false;
 	}
 
-	UE_LOG(LogHotWorldPartition, Verbose, TEXT("[Cook][PopulateGeneratedPackage] Gathered %u modified packages for %s"), ModifiedPackages.Num() , *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
+	UE_LOG(LogWorldPartition, Verbose, TEXT("[Cook][PopulateGeneratedPackage] Gathered %u modified packages for %s"), ModifiedPackages.Num() , *FWorldPartitionCookPackage::MakeGeneratedFullPath(GeneratedPackage.GeneratedRootPath, GeneratedPackage.RelativePath));
 	OutModifiedPackages = MoveTemp(ModifiedPackages);
 
 	return bIsSuccess;
 }
 
-bool FHotWorldPartitionCookPackageSplitter::PopulateGeneratorPackage(UPackage* OwnerPackage, UObject* OwnerObject,
+bool FWorldPartitionCookPackageSplitter::PopulateGeneratorPackage(UPackage* OwnerPackage, UObject* OwnerObject,
 	const TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& GeneratedPackages, TArray<UObject*>& OutObjectsToMove,
 	TArray<UPackage*>& OutModifiedPackages)
 {
-	UE_LOG(LogHotWorldPartition, Log, TEXT("[Cook][PopulateGeneratorPackage] Processing %u packages"), GeneratedPackages.Num());
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook][PopulateGeneratorPackage] Processing %u packages"), GeneratedPackages.Num());
 
 	bool bIsSuccess = true;
 	if (GeneratedPackages.Num() != CookContext.NumPackageToGenerate())
 	{
-		UE_LOG(LogHotWorldPartition, Error, TEXT("[Cook][PopulateGeneratorPackage] Receieved %u generated packages. Was expecting %u"), GeneratedPackages.Num(), CookContext.NumPackageToGenerate());
+		UE_LOG(LogWorldPartition, Error, TEXT("[Cook][PopulateGeneratorPackage] Receieved %u generated packages. Was expecting %u"), GeneratedPackages.Num(), CookContext.NumPackageToGenerate());
 		bIsSuccess = false;
 	}
 
@@ -170,19 +164,19 @@ bool FHotWorldPartitionCookPackageSplitter::PopulateGeneratorPackage(UPackage* O
 		}
 	}
 
-	UE_LOG(LogHotWorldPartition, Log, TEXT("[Cook][PopulateGeneratorPackage] Gathered %u modified packages"), ModifiedPackages.Num());
+	UE_LOG(LogWorldPartition, Log, TEXT("[Cook][PopulateGeneratorPackage] Gathered %u modified packages"), ModifiedPackages.Num());
 	OutModifiedPackages = MoveTemp(ModifiedPackages);
 
 	return bIsSuccess;
 }
 
-void FHotWorldPartitionCookPackageSplitter::OnOwnerReloaded(UPackage* OwnerPackage, UObject* OwnerObject)
+void FWorldPartitionCookPackageSplitter::OnOwnerReloaded(UPackage* OwnerPackage, UObject* OwnerObject)
 {
 	// It should not be possible for the owner to reload due to garbage collection while we are active and keeping it referenced
 	check(!ReferencedWorld);
 }
 
-void FHotWorldPartitionCookPackageSplitter::BuildPackagesToGenerateList(TArray<ICookPackageSplitter::FGeneratedPackage>& PackagesToGenerate) const
+void FWorldPartitionCookPackageSplitter::BuildPackagesToGenerateList(TArray<ICookPackageSplitter::FGeneratedPackage>& PackagesToGenerate) const
 {
 	for (const IWorldPartitionCookPackageGenerator* CookPackageGenerator : CookContext.GetCookPackageGenerators())
 	{
@@ -195,10 +189,21 @@ void FHotWorldPartitionCookPackageSplitter::BuildPackagesToGenerateList(TArray<I
 				ICookPackageSplitter::FGeneratedPackage& GeneratedPackage = PackagesToGenerate.Emplace_GetRef();
 				GeneratedPackage.GeneratedRootPath = CookPackage->Root;
 				GeneratedPackage.RelativePath = CookPackage->RelativePath;
+				// GenerationHash is left as empty. All dependencies for the package's bytes are specified by PackageDependencies
 
 				CookPackage->Type == FWorldPartitionCookPackage::EType::Level ? GeneratedPackage.SetCreateAsMap(true) : GeneratedPackage.SetCreateAsMap(false);
 
-				// @todo_ow: Set dependencies once we get iterative cooking working
+				// Fill generated package dependencies for iterative cooking
+				if (UWorldPartitionRuntimeCell* Cell = CookPackageGenerator->GetCellForPackage(*CookPackage))
+				{
+					TSet<FName> ActorPackageNames = Cell->GetActorPackageNames();
+					GeneratedPackage.PackageDependencies.Reset(ActorPackageNames.Num());
+					for (FName ActorPackageName : ActorPackageNames)
+					{
+						GeneratedPackage.PackageDependencies.Add(FAssetDependency::PackageDependency(ActorPackageName,
+							UE::AssetRegistry::EDependencyProperty::Hard | UE::AssetRegistry::EDependencyProperty::Game));
+					}
+				}
 			}
 		}
 	}

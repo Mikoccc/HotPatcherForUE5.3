@@ -10,7 +10,7 @@
 #include "Templates/SharedPointer.h"
 #include "Dom/JsonObject.h"
 #include "IPlatformFilePak.h"
-#include "AssetRegistryState.h"
+#include "AssetRegistry/AssetRegistryState.h"
 #include "FlibPakHelper.generated.h"
 
 #if ENGINE_MAJOR_VERSION > 4 || ENGINE_MINOR_VERSION >=26

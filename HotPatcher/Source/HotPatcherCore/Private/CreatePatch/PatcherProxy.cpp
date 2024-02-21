@@ -13,7 +13,7 @@
 // engine header
 #include "Async/Async.h"
 #include "CoreGlobals.h"
-#include "AssetRegistryState.h"
+#include "AssetRegistry/AssetRegistryState.h"
 #include "ShaderCompiler.h"
 #include "Dom/JsonValue.h"
 #include "HAL/PlatformFilemanager.h"
